@@ -22,11 +22,17 @@
 ; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 %define O_RDONLY    0
 
+; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Límite de ítems aceptados del inventario
+; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+%define MAX_ITEMS  128
+
 section .data
     ; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     ; Nombre del archivo de config
     ; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     fname_config        db "config.ini", 0
+    fname_invent        db "Inventario.txt", 0
 
     ; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     ; Palabras que se buscarán (incluye los dos puntos ':')
@@ -46,24 +52,35 @@ section .data
     ; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     msg_ok1             db "caracter_barra:'"
     msg_ok1_len         equ $ - msg_ok1
-
     msg_ok2             db "'", 10, "color_barra:"
     msg_ok2_len         equ $ - msg_ok2
-
     msg_ok3             db 10, "color_fondo:"
     msg_ok3_len         equ $ - msg_ok3
-
     msg_nl              db 10
     msg_nl_len          equ $ - msg_nl
 
     ; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-    ; Mensajes de error
+    ; Mensajes de error (CONFIG)
     ; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     msg_err_open        db "No pude abrir config.ini",10
     msg_err_open_len    equ $ - msg_err_open
-
     msg_err_read        db "No pude leer config.ini",10
     msg_err_read_len    equ $ - msg_err_read
+
+    ; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    ; Mensajes de verificación / error (INVENTARIO)
+    ; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    msg_inv_ok          db "INVENTARIO OK",10
+    msg_inv_ok_len      equ $ - msg_inv_ok
+    msg_items           db "items=",0
+    msg_items_len       equ $ - msg_items - 1
+    msg_colonsp         db ": "
+    msg_colonsp_len     equ $ - msg_colonsp
+
+    msg_err_open_inv    db "No pude abrir inventario.txt",10
+    msg_err_open_inv_len equ $ - msg_err_open_inv
+    msg_err_read_inv    db "No pude leer inventario.txt",10
+    msg_err_read_inv_len equ $ - msg_err_read_inv
 
 section .bss
     ; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -89,14 +106,24 @@ section .bss
     num_buf         resb 16
     num_len         resd 1
 
+    ; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    ; Memoria para Inventario.txt
+    ;  - inv_buf/inv_len: archivo completo
+    ;  - Estructuras paralelas por ítem (ptr, len, qty)
+    ; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    inv_buf         resb 4096
+    inv_len         resq 1
+    inv_count       resd 1
+    inv_name_ptrs   resq MAX_ITEMS
+    inv_name_lens   resd MAX_ITEMS
+    inv_qtys        resd MAX_ITEMS
+
 section .text
 global _start
 
 ; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; write_stdout
-;   Escribe en STDOUT el buffer [RSI .. RSI+RDX)
-;   Convención:
-;     IN: RSI = puntero, RDX = longitud
+;   Escribe en STDOUT el rango [RSI .. RSI+RDX)
 ; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 write_stdout:
     mov rax, SYS_WRITE
@@ -114,14 +141,14 @@ write_stdout:
 u32_to_dec:
     push rbx
     push rcx
-    mov rcx, 0                    ; contador de dígitos
+    push rdx
+    mov rcx, 0
     mov rbx, 10
-    lea rdi, [num_buf + 15]       ; cursor al final del buffer
-    mov byte [rdi], 0             ; finalizador
+    lea rdi, [rel num_buf + 15]
+    mov byte [rdi], 0
     dec rdi
     cmp eax, 0
     jne .u_loop
-    ; caso de tener un 0
     mov byte [rdi], '0'
     mov rcx, 1
     jmp .u_done
@@ -135,10 +162,11 @@ u32_to_dec:
     test eax, eax                 ; ¿quedan más dígitos?
     jnz .u_loop
 .u_done:
-    inc rdi                       ; avanzar al primer dígito
-    mov rsi, rdi                  ; RSI -> inicio de la cadena
-    mov edx, ecx                  ; RDX = longitud
-    mov [num_len], edx
+    inc rdi
+    mov rsi, rdi
+    mov edx, ecx
+    mov [rel num_len], edx
+    pop rdx
     pop rcx
     pop rbx
     ret
@@ -170,9 +198,9 @@ read_bar_token:
     push rcx
     push rsi
     push rdi
-    mov rsi, rax                  ; cursor de lectura
-    lea rdi, [bar_bytes]          ; destino
-    xor rcx, rcx                  ; contador de bytes copiados
+    mov rsi, rax
+    lea rdi, [rel bar_bytes]
+    xor ecx, ecx
 .rbt_copy:
     mov al, [rsi]
     cmp al, 10                    ; '\n'
