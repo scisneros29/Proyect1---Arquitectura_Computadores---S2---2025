@@ -202,15 +202,15 @@ read_bar_token:
     lea rdi, [rel bar_bytes]
     xor ecx, ecx
 .rbt_copy:
-    mov al, [rsi]
-    cmp al, 10                    ; '\n'
+     mov al, [rsi]
+    cmp al, 10
     je .rbt_done
-    cmp al, 13                    ; '\r'
+    cmp al, 13
     je .rbt_done
-    cmp ecx, 8                    ; límite de 8 bytes
+    cmp ecx, 8
     jae .rbt_done
-    mov [rdi + rcx], al           ; copiar byte
-    inc rcx
+    mov [rdi + rcx], al
+    inc ecx
     inc rsi
     jmp .rbt_copy
 .rbt_done:
@@ -226,68 +226,62 @@ read_bar_token:
 ;   2) Abrir/leer/cerrar config.ini
 ;   3) Buscar y parsear cada clave
 ;   4) Imprimir resultados de verificación
+;   5) Mostrar conteo e ítems “Nombre: Cantidad”
 ; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 _start:
     ; ------------------------
     ; 1) Valores por defecto (si no se detecta ninguna clave)
     ; ------------------------
-    mov dword [color_barra], 92   ; texto verde brillante
-    mov dword [color_fondo], 40   ; fondo negro
-    mov dword [bar_len], 1
-    mov byte  [bar_bytes], '*'    ; '*' por defecto
+    mov dword [rel color_barra], 92   ; texto verde brillante
+    mov dword [rel color_fondo], 40   ; fondo negro
+    mov dword [rel bar_len], 1
+    mov byte  [rel bar_bytes], '*'    ; '*' por defecto
 
-    ; ------------------------
-    ; 2) Abrir config.ini (SYS_OPEN)
-    ; ------------------------
+    ; ;;;;;;;;;;;;;;;;;;;;;;;;;;;; PASO 1: CONFIG ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    ; Abrir config.ini
     mov rax, SYS_OPEN
-    mov rdi, fname_config
+    lea rdi, [rel fname_config]
     mov rsi, O_RDONLY
     xor rdx, rdx
     syscall
     cmp rax, 0
-    jl  .err_open
-    mov r12, rax                  ; fd
+    jl .err_open
+    mov r12, rax
 
-    ; Leer config.ini (SYS_READ)
+    ; Leer config.ini a config_buf
     mov rax, SYS_READ
     mov rdi, r12
-    lea rsi, [config_buf]
+    lea rsi, [rel config_buf]
     mov rdx, 2048
     syscall
     cmp rax, 0
     jle .err_read
-    mov [config_len], rax
+    mov [rel config_len], rax
 
     ; Cerrar fd (SYS_CLOSE)
     mov rax, SYS_CLOSE
     mov rdi, r12
     syscall
 
-    ; ------------------------
-    ; Punteros y longitudes útiles
-    ; ------------------------
-    lea r8,  [config_buf]         ; r8 = buf
-    mov r9,  [config_len]         ; r9 = len
+    ; Punteros útiles: r8=buf, r9=len
+    lea r8,  [rel config_buf]
+    mov r9,  [rel config_len]
 
-; ====== BÚSQUEDA LÍNEA 1: "caracter_barra:" 
+; ====== BÚSQUEDA "caracter_barra:" 
     lea r10, [key_bar_char]       ; r10 = key ptr
     mov r11, key_bar_char_len     ; r11 = key len
     xor rbx, rbx                  ; i = 0 (índice en buf)
-
 .cb_search_i:
-    ; ¿cabe la clave completa desde i?
     cmp rbx, r9
     jae .cb_not_found
     mov rax, rbx
     add rax, r11
     cmp rax, r9
     ja  .cb_not_found
-
-    xor rcx, rcx                  ; j = 0
+    xor rcx, rcx
 .cb_search_j:
     cmp rcx, r11
     je  .cb_found                 ; coincidió toda la clave
-    ; comparar buf[i+j] con key[j]
     mov rax, rbx
     add rax, rcx
     mov al, [r8 + rax]
@@ -296,28 +290,25 @@ _start:
     jne .cb_next_i
     inc rcx
     jmp .cb_search_j
-
 .cb_found:
-    ; RAX = buf + i + key_len -> apunta al valor
     mov rax, rbx
     add rax, r11
     add rax, r8
     call skip_spaces              ; saltar espacios tras ':'
     call read_bar_token           ; copiar hasta fin de línea a bar_bytes/bar_len
     jmp .after_bar
-
 .cb_next_i:
     inc rbx
     jmp .cb_search_i
-
 .cb_not_found:
 .after_bar:
 
-; ====== BÚSQUEDA LÍNEA 2: "color_barra:" 
-    lea r10, [key_color_bar]
+; ====== BÚSQUEDA "color_barra:" 
+    lea r8,  [rel config_buf]
+    mov r9,  [rel config_len]
+    lea r10, [rel key_color_bar]
     mov r11, key_color_bar_len
     xor rbx, rbx
-
 .cbar_search_i:
     cmp rbx, r9
     jae .cbar_not_found
@@ -325,7 +316,6 @@ _start:
     add rax, r11
     cmp rax, r9
     ja  .cbar_not_found
-
     xor rcx, rcx
 .cbar_search_j:
     cmp rcx, r11
@@ -338,9 +328,7 @@ _start:
     jne .cbar_next_i
     inc rcx
     jmp .cbar_search_j
-
 .cbar_found:
-    ; parsear entero decimal muy simple
     mov rax, rbx
     add rax, r11
     add rax, r8
@@ -360,21 +348,20 @@ _start:
     inc rdi
     jmp .cbar_parse
 .cbar_store:
-    mov [color_barra], eax
+    mov [rel color_barra], eax
     jmp .after_cbar
-
 .cbar_next_i:
     inc rbx
     jmp .cbar_search_i
-
 .cbar_not_found:
 .after_cbar:
 
-; ====== BÚSQUEDA LÍNEA 3: "color_fondo:" 
-    lea r10, [key_color_bg]
+; ====== BÚSQUEDA "color_fondo:" 
+    lea r8,  [rel config_buf]
+    mov r9,  [rel config_len]
+    lea r10, [rel key_color_bg]
     mov r11, key_color_bg_len
     xor rbx, rbx
-
 .cbg_search_i:
     cmp rbx, r9
     jae .cbg_not_found
@@ -382,7 +369,6 @@ _start:
     add rax, r11
     cmp rax, r9
     ja  .cbg_not_found
-
     xor rcx, rcx
 .cbg_search_j:
     cmp rcx, r11
@@ -395,7 +381,6 @@ _start:
     jne .cbg_next_i
     inc rcx
     jmp .cbg_search_j
-
 .cbg_found:
     mov rax, rbx
     add rax, r11
@@ -416,59 +401,287 @@ _start:
     inc rdi
     jmp .cbg_parse
 .cbg_store:
-    mov [color_fondo], eax
+    mov [rel color_fondo], eax
     jmp .after_cbg
-
 .cbg_next_i:
     inc rbx
     jmp .cbg_search_i
-
 .cbg_not_found:
 .after_cbg:
 
     ; ------------------------
-    ; 4) Mostrar los resultados parseados
+    ; 4) Mostrar los resultados parseados de config
     ; ------------------------
-
-    ; "caracter_barra: '"
-    mov rsi, msg_ok1
+    lea rsi, [rel msg_ok1]
     mov rdx, msg_ok1_len
     call write_stdout
 
-    ; el caracter (hasta bar_len bytes)
-    lea rsi, [bar_bytes]
-    mov edx, [bar_len]
+    lea rsi, [rel bar_bytes]
+    mov edx, [rel bar_len]
     test edx, edx
     jz  .skip_char_print
     call write_stdout
 .skip_char_print:
 
-    ; "'\ncolor_barra: "
-    mov rsi, msg_ok2
+    lea rsi, [rel msg_ok2]
     mov rdx, msg_ok2_len
     call write_stdout
 
-    ; número color_barra
-    mov eax, [color_barra]
+    mov eax, [rel color_barra]
     call u32_to_dec
     call write_stdout
 
-    ; "\ncolor_fondo: "
-    mov rsi, msg_ok3
+    lea rsi, [rel msg_ok3]
     mov rdx, msg_ok3_len
     call write_stdout
 
-    ; número color_fondo
-    mov eax, [color_fondo]
+    mov eax, [rel color_fondo]
     call u32_to_dec
     call write_stdout
 
-    ; salto final
-    mov rsi, msg_nl
+    lea rsi, [rel msg_nl]
     mov rdx, msg_nl_len
     call write_stdout
 
-    ; salir ok
+; ;;;;;;;;;;;;;;;;;;;;;;;;; PASO 2: INVENTARIO ;;;;;;;;;;;;;;;;;;;;;;;;;
+    ; Inicializar contador
+    mov dword [rel inv_count], 0
+
+    ; Abrir Inventario.txt
+    mov rax, SYS_OPEN
+    lea rdi, [rel fname_invent]
+    mov rsi, O_RDONLY
+    xor rdx, rdx
+    syscall
+    cmp rax, 0
+    jl .err_open_inv
+    mov r13, rax
+
+; Leer Inventario.txt a inv_buf
+    mov rax, SYS_READ
+    mov rdi, r13
+    lea rsi, [rel inv_buf]
+    mov rdx, 4096
+    syscall
+    cmp rax, 0
+    jle .err_read_inv
+    mov [rel inv_len], rax
+
+    ; Cerrar fd
+    mov rax, SYS_CLOSE
+    mov rdi, r13
+    syscall
+
+    ; Parseo lineal: “Nombre: 123”
+    lea rsi, [rel inv_buf]         ; cursor
+    mov rdx, [rel inv_len]         ; bytes restantes
+    lea r12, [rel inv_name_ptrs]   ; base nombres
+    lea r14, [rel inv_name_lens]   ; base longitudes
+    lea r15, [rel inv_qtys]        ; base cantidades
+
+.inv_next_line:
+    cmp rdx, 0
+    jle .inv_done
+
+    ; Saltar CR/LF/espacios/tabs iniciales
+.inv_skip_ws:
+    cmp rdx, 0
+    jle .inv_done
+    mov al, [rsi]
+    cmp al, 10
+    je  .inv_cons1
+    cmp al, 13
+    je  .inv_cons1
+    cmp al, ' '
+    je  .inv_cons1
+    cmp al, 9
+    je  .inv_cons1
+    jmp .inv_key_start
+.inv_cons1:
+    inc rsi
+    dec rdx
+    jmp .inv_skip_ws
+
+    ; Capturar nombre hasta ':'
+.inv_key_start:
+    mov r8, rsi
+    xor r9, r9
+.inv_scan_key:
+    cmp rdx, 0
+    jle .inv_done
+    mov al, [rsi]
+    cmp al, ':'
+    je  .inv_key_end
+    cmp al, 10
+    je  .inv_line_skip
+    cmp al, 13
+    je  .inv_line_skip
+    inc rsi
+    inc r9
+    dec rdx
+    jmp .inv_scan_key
+
+    ; Recorte de espacios finales del nombre
+.inv_key_end:
+    mov rcx, r9
+    cmp rcx, 0
+    je  .inv_after_colon
+.inv_trim_tail:
+    mov rax, r8
+    add rax, rcx
+    dec rax
+    mov bl, [rax]
+    cmp bl, ' '
+    je  .inv_trim_dec
+    cmp bl, 9
+    je  .inv_trim_dec
+    jmp .inv_trim_ok
+.inv_trim_dec:
+    dec rcx
+    jmp .inv_trim_tail
+.inv_trim_ok:
+
+    ; Guardar puntero+longitud si hay espacio
+    mov eax, [rel inv_count]
+    cmp eax, MAX_ITEMS
+    jae .inv_after_colon
+    mov ebx, eax
+    mov rax, r8
+    mov [r12 + rbx*8], rax
+    mov [r14 + rbx*4], ecx
+
+    ; Saltar ':' y espacios posteriores
+.inv_after_colon:
+    inc rsi
+    dec rdx
+.inv_val_ws:
+    cmp rdx, 0
+    jle .inv_line_end
+    mov al, [rsi]
+    cmp al, ' '
+    je  .inv_cons2
+    cmp al, 9
+    je  .inv_cons2
+    jmp .inv_num
+.inv_cons2:
+    inc rsi
+    dec rdx
+    jmp .inv_val_ws
+
+    ; Leer número (cantidad)
+.inv_num:
+    xor ebx, ebx
+.inv_num_loop:
+    cmp rdx, 0
+    jle .inv_store
+    mov al, [rsi]
+    cmp al, 10
+    je  .inv_store
+    cmp al, 13
+    je  .inv_store
+    cmp al, '0'
+    jb  .inv_store
+    cmp al, '9'
+    ja  .inv_store
+    imul ebx, ebx, 10
+    movzx eax, al
+    sub eax, '0'
+    add ebx, eax
+    inc rsi
+    dec rdx
+    jmp .inv_num_loop
+
+    ; Guardar cantidad e incrementar contador
+.inv_store:
+    mov eax, [rel inv_count]
+    cmp eax, MAX_ITEMS
+    jae .inv_line_end
+    mov ecx, eax
+    mov [r15 + rcx*4], ebx
+    inc eax
+    mov [rel inv_count], eax
+
+    ; Avanzar hasta '\n'
+.inv_line_end:
+.inv_to_nl:
+    cmp rdx, 0
+    jle .inv_done
+    mov al, [rsi]
+    inc rsi
+    dec rdx
+    cmp al, 10
+    jne .inv_to_nl
+    jmp .inv_next_line
+
+    ; Línea sin ':' → descartar hasta '\n'
+.inv_line_skip:
+.inv_skip_to_nl:
+    cmp rdx, 0
+    jle .inv_done
+    mov al, [rsi]
+    inc rsi
+    dec rdx
+    cmp al, 10
+    jne .inv_skip_to_nl
+    jmp .inv_next_line
+
+; ---- Hasta aquí el parseo del inventario ----
+.inv_done:
+    ; Mostrar verificación básica imprimiendo en consoal
+    lea rsi, [rel msg_inv_ok]
+    mov rdx, msg_inv_ok_len
+    call write_stdout
+
+    lea rsi, [rel msg_items]
+    mov rdx, msg_items_len
+    call write_stdout
+
+    mov eax, [rel inv_count]
+    call u32_to_dec
+    call write_stdout
+
+    lea rsi, [rel msg_nl]
+    mov rdx, msg_nl_len
+    call write_stdout
+
+    ; Listado “Nombre: Cantidad”
+    lea r12, [rel inv_name_ptrs]
+    lea r14, [rel inv_name_lens]
+    lea r15, [rel inv_qtys]
+    xor r8d, r8d
+.inv_print_loop:
+    mov eax, [rel inv_count]
+    cmp r8d, eax
+    jge .exit_ok
+
+    ; Nombre
+    mov rax, [r12 + r8*8]
+    mov edx, [r14 + r8*4]
+    mov rsi, rax
+    call write_stdout
+
+    ; ": "
+    lea rsi, [rel msg_colonsp]
+    mov rdx, msg_colonsp_len
+    call write_stdout
+
+    ; Cantidad
+    mov eax, [r15 + r8*4]
+    call u32_to_dec
+    call write_stdout
+
+    ; Nueva línea
+    lea rsi, [rel msg_nl]
+    mov rdx, msg_nl_len
+    call write_stdout
+
+    inc r8d
+    jmp .inv_print_loop
+
+; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Salida OK
+; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+.exit_ok:
     mov rax, SYS_EXIT
     xor rdi, rdi
     syscall
@@ -476,9 +689,8 @@ _start:
 ; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Rutinas de detección de errores
 ; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
 .err_open:
-    mov rsi, msg_err_open
+    lea rsi, [rel msg_err_open]
     mov rdx, msg_err_open_len
     call write_stdout
     mov rax, SYS_EXIT
@@ -486,9 +698,25 @@ _start:
     syscall
 
 .err_read:
-    mov rsi, msg_err_read
+    lea rsi, [rel msg_err_read]
     mov rdx, msg_err_read_len
     call write_stdout
     mov rax, SYS_EXIT
     mov rdi, 2
+    syscall
+
+.err_open_inv:
+    lea rsi, [rel msg_err_open_inv]
+    mov rdx, msg_err_open_inv_len
+    call write_stdout
+    mov rax, SYS_EXIT
+    mov rdi, 3
+    syscall
+
+.err_read_inv:
+    lea rsi, [rel msg_err_read_inv]
+    mov rdx, msg_err_read_inv_len
+    call write_stdout
+    mov rax, SYS_EXIT
+    mov rdi, 4
     syscall
