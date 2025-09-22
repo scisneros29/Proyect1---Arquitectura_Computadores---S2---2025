@@ -214,7 +214,7 @@ read_bar_token:
     inc rsi
     jmp .rbt_copy
 .rbt_done:
-    mov [bar_len], ecx
+    mov [rel bar_len], ecx
     pop rdi
     pop rsi
     pop rcx
@@ -648,7 +648,62 @@ _start:
     lea r12, [rel inv_name_ptrs]
     lea r14, [rel inv_name_lens]
     lea r15, [rel inv_qtys]
+    mov ecx, [rel inv_count]
+    cmp ecx, 1
+    jle .sort_end
+    mov r8, rcx
+    dec r8
+    .sort_outer_loop:
+    xor r9, r9
+.sort_inner_loop:
+    cmp r9, r8
+    jge .sort_next_iteration
+    mov r10, r9
+    inc r10
+    mov rsi, [r12 + r9*8]
+    mov eax, [r14 + r9*4]
+    mov rdi, [r12 + r10*8]
+    mov ebx, [r14 + r10*4]
+    push rcx
+    mov ecx, eax
+    cmp ecx, ebx
+    jbe .use_len1
+    mov ecx, ebx
+.use_len1:
+    repe cmpsb
+    pop rcx
+    ja .swap_items
+    jne .no_swap
+    cmp eax, ebx
+    ja .swap_items
+    jmp .no_swap
+.swap_items:
+    mov rax, [r12 + r9*8]
+    mov rbx, [r12 + r10*8]
+    mov [r12 + r9*8], rbx
+    mov [r12 + r10*8], rax
+    mov eax, [r14 + r9*4]
+    mov ebx, [r14 + r10*4]
+    mov [r14 + r9*4], ebx
+    mov [r14 + r10*4], eax
+    mov eax, [r15 + r9*4]
+    mov ebx, [r15 + r10*4]
+    mov [r15 + r9*4], ebx
+    mov [r15 + r10*4], eax
+.no_swap:
+    inc r9
+    jmp .sort_inner_loop
+.sort_next_iteration:
+    dec r8
+    jnz .sort_outer_loop
+.sort_end:
+
+    ; ===== listar ítems ordenados =====
+    lea r12, [rel inv_name_ptrs]
+    lea r14, [rel inv_name_lens]
+    lea r15, [rel inv_qtys]
     xor r8d, r8d
+
 .inv_print_loop:
     mov eax, [rel inv_count]
     cmp r8d, eax
