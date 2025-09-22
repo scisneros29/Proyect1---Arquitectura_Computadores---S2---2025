@@ -9,9 +9,9 @@ NASMFLAGS := -f elf64 -g -F dwarf
 LDFLAGS   := -m elf_x86_64
 
 # Nombres
-SRC   := pasoX.asm
-OBJ   := pasoX.o
-BIN   := pasoX
+SRC   := final.asm
+OBJ   := final.o
+BIN   := final
 
 # Regla por defecto: compilar, enlazar y ejecutar
 .PHONY: all
