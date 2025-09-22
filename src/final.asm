@@ -31,7 +31,7 @@ section .data
     ; Nombre del archivo de config
     ; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     fname_config        db "config.ini", 0
-    fname_invent        db "inventario.txt", 0
+    fname_invent        db "Inventario.txt", 0
 
     ; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     ; Claves
@@ -54,7 +54,6 @@ section .data
     msg_ok3_len         equ $ - msg_ok3
     msg_nl              db 10
     msg_nl_len          equ $ - msg_nl
-
     msg_inv_ok          db "INVENTARIO OK",10
     msg_inv_ok_len      equ $ - msg_inv_ok
     msg_items           db "items=",0
@@ -171,11 +170,14 @@ u32_to_dec:
 .u_done:
     inc rdi
     mov rsi, rdi
-    mov edx, ecx
-    mov [rel num_len], edx
+
+    mov eax, ecx
+    ;mov [rel num_len], edx
     pop rdx
     pop rcx
     pop rbx
+
+    mov edx, eax
     ret
 
 ; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -209,7 +211,7 @@ read_bar_token:
     lea rdi, [rel bar_bytes]
     xor ecx, ecx
 .rbt_copy:
-     mov al, [rsi]
+    mov al, [rsi]
     cmp al, 10
     je .rbt_done
     cmp al, 13
@@ -255,7 +257,6 @@ _start:
     jl .err_open
     mov r12, rax
 
-    ; Leer config.ini a config_buf
     mov rax, SYS_READ
     mov rdi, r12
     lea rsi, [rel config_buf]
@@ -264,30 +265,17 @@ _start:
     cmp rax, 0
     jle .err_read
     mov [rel config_len], rax
-
-    ; Cerrar fd (SYS_CLOSE)
-    mov rax, SYS_CLOSE
-    mov rdi, r12
-    lea rsi, [rel config_buf]
-    mov rdx, 2048
-    syscall
-
-    ; Verifica lectura
-    cmp rax, 0
-    jle .err_read
-    mov [rel config_len], rax
+    
     mov rax, SYS_CLOSE
     mov rdi, r12
     syscall
 
-    ; Punteros útiles: r8=buf, r9=len
     lea r8,  [rel config_buf]
     mov r9,  [rel config_len]
 
-; ====== BÚSQUEDA "caracter_barra:" 
-    lea r10, [key_bar_char]       ; r10 = key ptr
-    mov r11, key_bar_char_len     ; r11 = key len
-    xor rbx, rbx                  ; i = 0 (índice en buf)
+    lea r10, [rel key_bar_char]
+    mov r11, key_bar_char_len
+    xor rbx, rbx
 .cb_search_i:
     cmp rbx, r9
     jae .after_bar
@@ -720,34 +708,85 @@ _start:
     xor r8d, r8d
     xor ebx, ebx
 
-.inv_print_loop:
-    mov eax, [rel inv_count]
-    cmp r8d, eax
+.find_max_loop:
+    cmp r8d, ecx
+    jge .find_max_done
+    mov eax, [r14 + r8*4]
+    cmp eax, ebx
+    jbe .find_max_next
+    mov ebx, eax
+.find_max_next:
+    inc r8d
+    jmp .find_max_loop
+.find_max_done:
+    mov [rel inv_max_qty], ebx
+    lea r12, [rel inv_name_ptrs]
+    lea r14, [rel inv_name_lens]
+    lea r15, [rel inv_qtys]
+    xor r8d, r8d
+.draw_loop:
+    mov ecx, [rel inv_count]
+    cmp r8d, ecx
     jge .exit_ok
-
-    ; Nombre
     mov rax, [r12 + r8*8]
     mov edx, [r14 + r8*4]
     mov rsi, rax
     call write_stdout
-
-    ; ": "
-    lea rsi, [rel msg_colonsp]
-    mov rdx, msg_colonsp_len
+    lea rsi, [rel msg_open_bracket]
+    mov rdx, msg_open_bracket_len
     call write_stdout
-
-    ; Cantidad
+    lea rsi, [rel ansi_esc_start]
+    mov rdx, ansi_esc_start_len
+    call write_stdout
+    mov eax, [rel color_fondo]
+    call u32_to_dec
+    call write_stdout
+    lea rsi, [rel ansi_m]
+    mov rdx, ansi_m_len
+    call write_stdout
+    lea rsi, [rel ansi_esc_start]
+    mov rdx, ansi_esc_start_len
+    call write_stdout
+    mov eax, [rel color_barra]
+    call u32_to_dec
+    call write_stdout
+    lea rsi, [rel ansi_m]
+    mov rdx, ansi_m_len
+    call write_stdout
+    mov ebx, [rel inv_max_qty]
+    test ebx, ebx
+    jz .skip_bar
+    mov eax, [r15 + r8*4]
+    imul eax, MAX_BAR_WIDTH
+    xor edx, edx
+    div ebx
+    mov r9, rax
+.draw_bar_loop:
+    cmp r9, 0
+    jle .skip_bar
+    lea rsi, [rel bar_bytes]
+    mov edx, [rel bar_len]
+    call write_stdout
+    dec r9
+    jmp .draw_bar_loop
+.skip_bar:
+    lea rsi, [rel ansi_esc_start]
+    mov rdx, ansi_esc_start_len
+    call write_stdout
+    lea rsi, [rel ansi_reset]
+    mov rdx, ansi_reset_len
+    call write_stdout
+    lea rsi, [rel msg_space]
+    mov rdx, msg_space_len
+    call write_stdout
     mov eax, [r15 + r8*4]
     call u32_to_dec
     call write_stdout
-
-    ; Nueva línea
     lea rsi, [rel msg_nl]
     mov rdx, msg_nl_len
     call write_stdout
-
     inc r8d
-    jmp .inv_print_loop
+    jmp .draw_loop
 
 ; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Salida OK
