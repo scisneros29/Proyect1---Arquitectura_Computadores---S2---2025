@@ -14,5 +14,11 @@
  carambola:21
  mamon:4
  jocote:18
+ mango:4
+ fresa:8
+ mora:7
+ frambuesa:9
+ arándano:23
+ queso:27
 
 
