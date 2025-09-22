@@ -123,6 +123,7 @@ section .bss
     inv_name_ptrs   resq MAX_ITEMS
     inv_name_lens   resd MAX_ITEMS
     inv_qtys        resd MAX_ITEMS
+    inv_max_qty     resd 1
 
 section .text
 global _start
@@ -267,6 +268,16 @@ _start:
     ; Cerrar fd (SYS_CLOSE)
     mov rax, SYS_CLOSE
     mov rdi, r12
+    lea rsi, [rel config_buf]
+    mov rdx, 2048
+    syscall
+
+    ; Verifica lectura
+    cmp rax, 0
+    jle .err_read
+    mov [rel config_len], rax
+    mov rax, SYS_CLOSE
+    mov rdi, r12
     syscall
 
     ; Punteros útiles: r8=buf, r9=len
@@ -279,11 +290,11 @@ _start:
     xor rbx, rbx                  ; i = 0 (índice en buf)
 .cb_search_i:
     cmp rbx, r9
-    jae .cb_not_found
+    jae .after_bar
     mov rax, rbx
     add rax, r11
     cmp rax, r9
-    ja  .cb_not_found
+    ja  .after_bar
     xor rcx, rcx
 .cb_search_j:
     cmp rcx, r11
@@ -306,7 +317,6 @@ _start:
 .cb_next_i:
     inc rbx
     jmp .cb_search_i
-.cb_not_found:
 .after_bar:
 
 ; ====== BÚSQUEDA "color_barra:" 
