@@ -1,12 +1,8 @@
-;nasm -f elf64 -g -F dwarf -o paso1.o paso1.asm
-;ld -m elf_x86_64 -o paso1 paso1.o
-;./paso1
+; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;                     PROGRAMA COMPLETO FINAL
+;       Pasos 1, 2, 3 y 4: Config, Inventario, Orden y Gráfico
+; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-; PASO 2
-;  - Paso 1: Leer y procesar config.ini
-;  - Paso 2: Leer y procesar inventario.txt y almacenar en memoria
-; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Números de syscall (Linux x86-64)
@@ -27,56 +23,66 @@
 ; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 %define MAX_ITEMS  128
 
+; Ancho máximo de las barras del gráfico en consola.
+%define MAX_BAR_WIDTH 50
+
 section .data
     ; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     ; Nombre del archivo de config
     ; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     fname_config        db "config.ini", 0
-    fname_invent        db "Inventario.txt", 0
+    fname_invent        db "inventario.txt", 0
 
     ; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-    ; Palabras que se buscarán (incluye los dos puntos ':')
-    ; Con lengths calculadas
+    ; Claves
     ; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     key_bar_char:       db "caracter_barra:"
     key_bar_char_len    equ $ - key_bar_char
-
     key_color_bar:      db "color_barra:"
     key_color_bar_len   equ $ - key_color_bar
-
     key_color_bg:       db "color_fondo:"
     key_color_bg_len    equ $ - key_color_bg
 
     ; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-    ; Mensajes para mostrar en consola
+    ; Mensajes y caracteres para mostrar en consola
     ; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-    msg_ok1             db "caracter_barra:'"
+    msg_ok1             db "caracter_barra: '"
     msg_ok1_len         equ $ - msg_ok1
-    msg_ok2             db "'", 10, "color_barra:"
+    msg_ok2             db "'", 10, "color_barra: "
     msg_ok2_len         equ $ - msg_ok2
-    msg_ok3             db 10, "color_fondo:"
+    msg_ok3             db 10, "color_fondo: "
     msg_ok3_len         equ $ - msg_ok3
     msg_nl              db 10
     msg_nl_len          equ $ - msg_nl
 
-    ; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-    ; Mensajes de error (CONFIG)
-    ; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-    msg_err_open        db "No pude abrir config.ini",10
-    msg_err_open_len    equ $ - msg_err_open
-    msg_err_read        db "No pude leer config.ini",10
-    msg_err_read_len    equ $ - msg_err_read
-
-    ; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-    ; Mensajes de verificación / error (INVENTARIO)
-    ; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     msg_inv_ok          db "INVENTARIO OK",10
     msg_inv_ok_len      equ $ - msg_inv_ok
     msg_items           db "items=",0
     msg_items_len       equ $ - msg_items - 1
     msg_colonsp         db ": "
     msg_colonsp_len     equ $ - msg_colonsp
+    msg_open_bracket    db ": ["
+    msg_open_bracket_len equ $ - msg_open_bracket
+    msg_space           db " "
+    msg_space_len       equ $ - msg_space
 
+    ; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    ; CODIGOS ANSI
+    ; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    ansi_esc_start      db 27, "["
+    ansi_esc_start_len  equ $ - ansi_esc_start
+    ansi_m              db "m"
+    ansi_m_len          equ $ - ansi_m
+    ansi_reset          db "0m"
+    ansi_reset_len      equ $ - ansi_reset
+
+    ; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    ; Mensajes de error
+    ; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    msg_err_open        db "No pude abrir config.ini",10
+    msg_err_open_len    equ $ - msg_err_open
+    msg_err_read        db "No pude leer config.ini",10
+    msg_err_read_len    equ $ - msg_err_read
     msg_err_open_inv    db "No pude abrir inventario.txt",10
     msg_err_open_inv_len equ $ - msg_err_open_inv
     msg_err_read_inv    db "No pude leer inventario.txt",10
