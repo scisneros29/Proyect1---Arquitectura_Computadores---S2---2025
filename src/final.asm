@@ -327,11 +327,11 @@ _start:
     xor rbx, rbx
 .cbar_search_i:
     cmp rbx, r9
-    jae .cbar_not_found
+    jae .after_cbar
     mov rax, rbx
     add rax, r11
     cmp rax, r9
-    ja  .cbar_not_found
+    ja  .after_cbar
     xor rcx, rcx
 .cbar_search_j:
     cmp rcx, r11
@@ -380,11 +380,11 @@ _start:
     xor rbx, rbx
 .cbg_search_i:
     cmp rbx, r9
-    jae .cbg_not_found
+    jae .after_cbg
     mov rax, rbx
     add rax, r11
     cmp rax, r9
-    ja  .cbg_not_found
+    ja  .after_cbg
     xor rcx, rcx
 .cbg_search_j:
     cmp rcx, r11
@@ -660,7 +660,7 @@ _start:
     mov rdx, msg_nl_len
     call write_stdout
 
-    ; Listado “Nombre: Cantidad”
+; ;;;;;;;;;;;;;;;;;;;;;;;;; PASO 3: INVENTARIO ORDENADO ;;;;;;;;;;;;;;;;;;;;;;;;;
     lea r12, [rel inv_name_ptrs]
     lea r14, [rel inv_name_lens]
     lea r15, [rel inv_qtys]
@@ -669,7 +669,7 @@ _start:
     jle .sort_end
     mov r8, rcx
     dec r8
-    .sort_outer_loop:
+.sort_outer_loop:
     xor r9, r9
 .sort_inner_loop:
     cmp r9, r8
@@ -714,11 +714,11 @@ _start:
     jnz .sort_outer_loop
 .sort_end:
 
-    ; ===== listar ítems ordenados =====
-    lea r12, [rel inv_name_ptrs]
-    lea r14, [rel inv_name_lens]
-    lea r15, [rel inv_qtys]
+; ;;;;;;;;;;;;;;;;;;;;;;;;; PASO 4: DIBUJAR GRÁFICO ;;;;;;;;;;;;;;;;;;;;;;;;;
+    lea r14, [rel inv_qtys]
+    mov ecx, [rel inv_count]
     xor r8d, r8d
+    xor ebx, ebx
 
 .inv_print_loop:
     mov eax, [rel inv_count]
