@@ -170,13 +170,10 @@ u32_to_dec:
 .u_done:
     inc rdi
     mov rsi, rdi
-
     mov eax, ecx
-    ;mov [rel num_len], edx
     pop rdx
     pop rcx
     pop rbx
-
     mov edx, eax
     ret
 
