@@ -2,23 +2,6 @@
  peras:8
  naranjas:25
  kiwis:5
- piñas:14
- mandarina:10
- mota:5
- guayaba:8
- uva:7
- banano:8
- pitahaya:11
- granadilla:3
- tomate:20
- carambola:21
- mamon:4
- jocote:18
- mango:4
- fresa:8
- mora:7
- frambuesa:9
- arándano:23
- queso:27
+ 
 
 
